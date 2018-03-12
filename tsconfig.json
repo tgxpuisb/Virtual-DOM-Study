@@ -8,6 +8,7 @@
       "declaration": true,
       "removeComments": false,
       "noUnusedLocals": true,
+      "allowUnusedLabels": true,
       "lib": [
           "dom",
           "es5",

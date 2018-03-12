@@ -4,8 +4,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "complie": "tsc --outDir ./dist"
+    "pretest": "npm run compile",
+    "test": "testem",
+    "compile": "npm run compile-es && npm run compile-commonjs",
+    "compile-es": "tsc --outDir es --module es6 --moduleResolution node",
+    "compile-commonjs": "tsc --outDir ./dist/",
+    "prepublish": "npm run compile",
+    "release-major": "xyz --repo git@github.com:paldepind/snabbdom.git --increment major",
+    "release-minor": "xyz --repo git@github.com:paldepind/snabbdom.git --increment minor",
+    "release-patch": "xyz --repo git@github.com:paldepind/snabbdom.git --increment patch"
   },
   "repository": {
     "type": "git",

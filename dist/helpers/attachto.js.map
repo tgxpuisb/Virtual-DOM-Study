@@ -1,0 +1,1 @@
+{"version":3,"file":"attachto.js","sourceRoot":"","sources":["../../src/helpers/attachto.ts"],"names":[],"mappings":";;AAiBA,aAAc,KAA0B,EAAE,QAA6B;AAEvE,CAAC;AAED,cAAe,CAAM,EAAE,KAA0B;AAEjD,CAAC;AAED,iBAAkB,KAA0B;AAE5C,CAAC;AAED,gBAAiB,CAAM,EAAE,KAA0B;AAEnD,CAAC;AAED,kBAA0B,MAAe,EAAE,KAAY;IACnD,MAAM,CAAC,KAAK,CAAA;AAChB,CAAC;AAFD,4BAEC;AAED,kBAAe,QAAQ,CAAA"}

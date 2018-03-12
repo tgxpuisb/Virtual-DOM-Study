@@ -1,12 +1,14 @@
-import {
-    Props,
-    Key,
-    Attrs,
-    Classes,
-    VNodeStyle,
-    Dataset
-} from './modules'
+import { Hooks } from './hooks'
+import { AttachData } from './helpers/attachto'
+import { VNodeStyle } from './modules/style'
+import { On } from './modules/eventlisteners'
+import { Attrs } from './modules/attributes'
+import { Classes } from './modules/class'
+import { Props } from './modules/props'
+import { Dataset } from './modules/dataset'
+import { Hero } from './modules/hero'
 
+export type Key = string | number
 
 export interface VNode {
     sel: string | undefined
@@ -23,22 +25,24 @@ export interface VNodeData {
     class?: Classes
     style?: VNodeStyle
     dataset?: Dataset
-    [key: string]: any
+    on?: On
+    hero?: Hero
+    attachData?: AttachData
+    hook?: Hooks
+    key?: Key
+    ns?: string // for svn
+    fn?: () => VNode // for thunks
+    args?: Array<any> // for thunks
+    [key: string]: any // any 3rd party module
 }
-
 export function vnode (
     sel: string | undefined,
     data: any | undefined,
     children: Array<VNode | string> | undefined,
     text: string | undefined,
-    elm: Element | Text | undefined 
+    elm: Element | Text | undefined
 ): VNode {
-    let key: Key | undefined
-    if (data === undefined) {
-        key = undefined
-    } else {
-        key = data.key
-    }
+    let key = data === undefined ? undefined : data.key
     return {
         sel,
         data,

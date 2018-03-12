@@ -1,13 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 function vnode(sel, data, children, text, elm) {
-    var key;
-    if (data === undefined) {
-        key = undefined;
-    }
-    else {
-        key = data.key;
-    }
+    var key = data === undefined ? undefined : data.key;
     return {
         sel: sel,
         data: data,
@@ -19,3 +13,4 @@ function vnode(sel, data, children, text, elm) {
 }
 exports.vnode = vnode;
 exports.default = vnode;
+//# sourceMappingURL=vnode.js.map
