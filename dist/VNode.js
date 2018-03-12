@@ -19,4 +19,3 @@ function vnode(sel, data, children, text, elm) {
 }
 exports.vnode = vnode;
 exports.default = vnode;
-//# sourceMappingURL=vnode.js.map

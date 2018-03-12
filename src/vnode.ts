@@ -39,7 +39,6 @@ export function vnode (
     } else {
         key = data.key
     }
-    
     return {
         sel,
         data,
