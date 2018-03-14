@@ -144,11 +144,11 @@ export function init (modules: Array<Partial<Module>>, domApi?: DOMAPI): (oldVNo
                 if (i.insert) {
                     insertedVnodeQueue.push(vnode)
                 }
-            } else {
-                vnode.elm = api.createTextNode(vnode.text as string)
             }
-            return vnode.elm
+        } else {
+            vnode.elm = api.createTextNode(vnode.text as string)
         }
+        return vnode.elm
     }
 
     // 添加一个节点
@@ -169,6 +169,9 @@ export function init (modules: Array<Partial<Module>>, domApi?: DOMAPI): (oldVNo
     }
 
     // 销毁一个node
+    /**
+     * 先调用vnode上的destroy,然后再调用全局cbs里面的destroy,最后递归调用子节点的destroy
+     */
     function invokeDestroyHook (vnode: VNode) {
         let i: any, j: number, data = vnode.data
         if (data !== undefined) {
@@ -210,6 +213,7 @@ export function init (modules: Array<Partial<Module>>, domApi?: DOMAPI): (oldVNo
                     if (isDef(i = ch.data) && isDef(i = i.hook) && isDef(i = i.remove)) {
                         i(ch, rm)
                     } else {
+                        // 如果没有内部remove则调用rm确保能移除节点
                         rm()
                     }
                 } else {
@@ -226,11 +230,99 @@ export function init (modules: Array<Partial<Module>>, domApi?: DOMAPI): (oldVNo
         oldCh: Array<VNode>,
         newCh: Array<VNode>,
         insertedVnodeQueue: VNodeQueue
-    ) {}
+    ) {
+        let oldStartIdx = 0, newStartIdx = 0  // 旧头索引,新头索引
+        let oldEndIdx = oldCh.length - 1 // 旧尾索引 
+        let oldStartVnode = oldCh[0]  // 旧开始节点
+        let oldEndVnode = oldCh[oldEndIdx] // 旧结束节点
+        let newEndIdx = newCh.length - 1 // 新尾索引
+        let newStartVnode = newCh[0] // 新开始节点
+        let newEndVnode = newCh[newEndIdx] // 新结束节点
+        let oldKeyToIdx: any
+        let idxInOld: number
+        let elmToMove: VNode
+        let before: any
+
+        while  (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
+            if (oldStartVnode == null) {
+                // 索引前移
+                oldStartVnode = oldCh[++oldStartIdx]
+            } else if (oldEndVnode == null) {
+                // 索引后移
+                oldEndVnode = oldCh[--oldEndIdx]
+            } else if (newStartVnode == null) {
+                // 新索引头后移
+                newStartVnode = newCh[++newStartIdx]
+            } else if (newEndVnode == null) {
+                // 旧索引尾前移
+                newEndVnode = newCh[--newEndIdx]
+            } else if (sameVnode(oldStartVnode, newStartVnode)) {
+                // 如果节点相同则进行节点patch
+                patchVnode(oldStartVnode, newStartVnode, insertedVnodeQueue)
+                oldStartVnode = oldCh[++oldStartIdx]
+                newStartVnode = newCh[++newStartIdx]
+            } else if (sameVnode(oldEndVnode, newEndVnode)) {
+                // 如果节点相同则进行节点patch
+                patchVnode(oldEndVnode, newEndVnode, insertedVnodeQueue)
+                oldEndVnode = oldCh[--oldEndIdx]
+                newEndVnode = newCh[--newEndIdx]
+            } else if (sameVnode(oldStartVnode, newEndVnode)) {
+                // 开始和结束对比,如果相同则
+                // [5,1,2,3,4]与[1,2,3,4,5]的patch
+                patchVnode(oldStartVnode, newEndVnode, insertedVnodeQueue)
+                api.insertBefore(parentElm, oldStartVnode.elm as Node, api.nextSibling(oldEndVnode.elm as Node))
+                oldStartVnode = oldCh[++oldStartIdx]
+                newEndVnode = newCh[--newEndIdx]
+            } else if (sameVnode(oldEndVnode, newStartVnode)) {
+                // 同上
+                patchVnode(oldEndVnode, newStartVnode, insertedVnodeQueue)
+                api.insertBefore(parentElm, oldEndVnode.elm as Node, oldStartVnode.elm as Node)
+                oldEndVnode = oldCh[--oldEndIdx]
+                newStartVnode = newCh[++newStartIdx]
+            } else {
+                // 如果上面的情况都挂了,那么只能通过key-index来复用了
+                if (oldKeyToIdx === undefined) {
+                    // 创建key to index
+                    oldKeyToIdx = createKeyToOldIdx(oldCh, oldStartIdx, oldEndIdx)
+                }
+                // 找到新的节点在旧节点中的位置
+                idxInOld = oldKeyToIdx[newStartVnode.key as string]
+                if (isUndef(idxInOld)) {
+                    // 新节点没有,则创建一个新元素
+                    api.insertBefore(parentElm, createElm(newStartVnode, insertedVnodeQueue), oldStartVnode.elm as Node)
+                    newStartVnode = newCh[++newStartIdx]
+                } else {
+                    // 如果找到了则找到对应旧节点
+                    elmToMove = oldCh[idxInOld]
+                    if (elmToMove.sel !== newStartVnode.sel) {
+                        // 如果两个节点完全不一样
+                        api.insertBefore(parentElm, createElm(newStartVnode, insertedVnodeQueue), oldStartVnode.elm as Node)
+                    } else {
+                        // 如果两个节点还OK就是内容变了些
+                        patchVnode(elmToMove, newStartVnode, insertedVnodeQueue)
+                        oldCh[idxInOld] = undefined as any // 标记一下,以免重复插入
+                        api.insertBefore(parentElm, (elmToMove.elm as Node), oldStartVnode.elm as Node)
+                    }
+                    newStartVnode = newCh[++newStartIdx] // 新索引前进一位
+                }
+            }
+        }
+        if (oldStartIdx <= oldEndIdx || newStartIdx <= newEndIdx) {
+            if (oldStartIdx > oldEndIdx) {
+                // 如果旧节点遍历完,但是新节点还有,则后面的节点全部插入
+                before = newCh[newEndIdx + 1] == null ? null : newCh[newEndIdx + 1].elm
+                addVnodes(parentElm, before, newCh, newStartIdx, newEndIdx, insertedVnodeQueue)
+            } else {
+                // 反之,新节点遍历完了,旧节点全部删除
+                removeVnodes(parentElm, oldCh, oldStartIdx, oldEndIdx)
+            }
+        }
+    }
 
     // 节点相似之后的对比
     function patchVnode (oldVnode: VNode, vnode: VNode, insertedVnodeQueue: VNodeQueue) {
         let i: any, hook: any
+        // 调用钩子
         if (isDef(i = vnode.data) && isDef(hook = i.hook) && isDef(i = hook.prepatch)) {
             i(oldVnode, vnode)
         }
@@ -238,6 +330,7 @@ export function init (modules: Array<Partial<Module>>, domApi?: DOMAPI): (oldVNo
         let oldCh = oldVnode.children
         let ch = vnode.children
         if (oldVnode === vnode) {
+            // 如果两个节点连引用都相同就不比了
             return
         }
 
@@ -254,18 +347,23 @@ export function init (modules: Array<Partial<Module>>, domApi?: DOMAPI): (oldVNo
 
         // 比较子节点
         if (isUndef(vnode.text)) {
+            // 如果不是文本节点
             if (isDef(oldCh) && isDef(ch)) {
                 if (oldCh !== ch) {
+                    // 当两个节点子节点不同的时候调用updateChildren
                     updateChildren(elm, oldCh as Array<VNode>, ch as Array<VNode>, insertedVnodeQueue)
                 }
             } else if (isDef(ch)) {
+                // 如果新的节点相比原来多了子节点,则加入子节点
                 if (isDef(oldVnode.text)) {
                     api.setTextContent(elm, '')
                 }
                 addVnodes(elm, null, ch as Array<VNode>, 0, (ch as Array<VNode>).length - 1, insertedVnodeQueue)
             } else if (isDef(oldCh)) {
+                // 如果新的节点相比原来的没有子节点,则删除原有子节点
                 removeVnodes(elm, oldCh as Array<VNode>, 0, (ch as Array<VNode>).length - 1)
             } else if (isDef(oldVnode.text)) {
+                // 如果都没子节点,且原有节点是文本节点,则删除文本节点
                 api.setTextContent(elm, '')
             }
         } else if (oldVnode.text !== vnode.text) {
@@ -273,6 +371,7 @@ export function init (modules: Array<Partial<Module>>, domApi?: DOMAPI): (oldVNo
             api.setTextContent(elm, vnode.text as string)
         }
         if (isDef(hook) && isDef(i = hook.postpatch)) {
+            // 触发postpatch
             i(oldVnode, vnode)
         }
     }
@@ -281,16 +380,20 @@ export function init (modules: Array<Partial<Module>>, domApi?: DOMAPI): (oldVNo
         let i: number, elm: Node, parent: Node
         const insertedVnodeQueue: VNodeQueue = []
         for (i = 0; i < cbs.pre.length; i++) {
+            // 调用pre钩子
             cbs.pre[i]()
         }
 
         if (!isVnode(oldVnode)) {
+            // 如果oldvnode是dom节点不是vnode则转化成vnode
             oldVnode = emptyNodeAt(oldVnode)
         }
 
         if (sameVnode(oldVnode, vnode)) {
+            // 判断节点是否相同,如果相同进行节点之外的更新
             patchVnode(oldVnode, vnode, insertedVnodeQueue)
         } else {
+            // 不相同,那么简单粗暴的替换节点
             elm = oldVnode.elm as Node
             parent = api.parentNode(elm)
 
@@ -301,12 +404,13 @@ export function init (modules: Array<Partial<Module>>, domApi?: DOMAPI): (oldVNo
                 removeVnodes(parent, [oldVnode], 0, 0)
             }
         }
-
+        // 插入完成之后调用insert钩子
         for (i = 0; i < insertedVnodeQueue.length; i++) {
             (((insertedVnodeQueue[i].data as VNodeData).hook as Hooks).insert as any)(insertedVnodeQueue[i])
         }
 
         for (i = 0; i < cbs.post.length; i++) {
+            // 调用全局钩子
             cbs.post[i]()
         }
 
